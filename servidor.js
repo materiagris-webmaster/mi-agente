@@ -1,110 +1,113 @@
-// ─────────────────────────────────────────────
-// SERVIDOR DEL AGENTE IA — Materia Gris
-// ─────────────────────────────────────────────
+require('dotenv').config();
+const express = require('express');
+const Anthropic = require('@anthropic-ai/sdk');
 
-// 1. Cargamos las herramientas que necesitamos
-require('dotenv').config();                        // Lee el archivo .env (donde está tu API Key)
-const express = require('express');                // Express: el framework que crea el servidor web
-const Anthropic = require('@anthropic-ai/sdk');    // El SDK oficial de Anthropic para hablar con Claude
-
-// 2. Creamos la "aplicación" de Express y el cliente de Anthropic
 const app = express();
 const client = new Anthropic();
 
-// 3. Le decimos a Express que entienda JSON
-//    (los mensajes del chat llegan en formato JSON)
 app.use(express.json());
 
-// 4. CORS — Permite que el widget de WordPress se conecte a este servidor
-//    Sin esto, el navegador bloquearía la conexión por seguridad
+// CORS para WordPress
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
-  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
 
-// 5. LA PERSONALIDAD DEL AGENTE (system prompt)
-//    Aquí defines quién es, qué sabe y cómo se comporta
-const SYSTEM_PROMPT = `Eres un asistente virtual de Materia Gris, una agencia digital premium ubicada en Querétaro, México.
+// ─────────────────────────────────────────────
+// SYSTEM PROMPT
+// ─────────────────────────────────────────────
+const systemPrompt = `Eres el asistente virtual de Materia Gris, una agencia digital premium con sede en Querétaro, México. Tu nombre es Gris.
 
-Tu objetivo es:
-1. Responder preguntas sobre los servicios de Materia Gris
-2. Calificar leads (obtener nombre, empresa y presupuesto del visitante)
-3. Derivar a WhatsApp cuando el lead esté listo
+## Tu personalidad
+Eres amigable, cercano y claro — como un colega experto que le explica las cosas sin rodeos a alguien de confianza. No usas jerga técnica innecesaria, pero tampoco finges que todo es fácil. Eres honesto, directo y siempre orientado a ayudar. Nunca eres vendedor agresivo ni robótico.
 
-SERVICIOS DE MATERIA GRIS:
-- Webs de Alto Impacto: sitios web profesionales para empresas que quieren destacar
-- Plataformas a Medida: software personalizado para automatizar procesos de negocio
-- Estrategia y Marketing Digital: posicionamiento, contenido y campañas digitales
-- Marcas que no se olvidan: identidad visual y branding estratégico
+Escribes en español mexicano natural. Usas frases cortas. Evitas el tuteo forzado y el "ustedeo" excesivo — hablas como una persona real.
 
-PRECIOS ORIENTATIVOS:
-- Sitios web: desde $15,000 MXN
-- Plataformas a medida: desde $30,000 MXN
-- Marketing digital: planes mensuales desde $5,000 MXN
+## Qué hace Materia Gris
+Materia Gris es una agencia digital premium. Trabajamos con empresas y emprendedores que quieren resultados reales, no solo un sitio bonito. Nuestros servicios:
 
-CONTACTO:
-- WhatsApp: +52 442 774 9881
-- Correo: contacto@materiagrismx.com
-- Sitio: materiagrismx.com
+1. **Webs de Alto Impacto** — Sitios web profesionales diseñados para convertir visitantes en clientes. Cada sitio es a medida, con estrategia, SEO y diseño que representa bien a la marca. Precio orientativo: desde $15,000 MXN según el proyecto.
 
-INSTRUCCIONES DE COMPORTAMIENTO:
-- Sé amable, profesional y directo
-- Habla siempre en español
-- Si alguien pregunta por precios, da los rangos orientativos y luego pregunta por su proyecto específico
-- Cuando alguien muestre interés real, pídele su nombre, el nombre de su empresa y su presupuesto aproximado
-- Cuando tengas esos 3 datos, invítalo a continuar por WhatsApp con este mensaje exacto:
-  "¡Perfecto! Ya tengo lo que necesito para que uno de nuestros especialistas te contacte. Te invito a continuar por WhatsApp para agendar una llamada sin compromiso: https://wa.me/524427749881"
-- Nunca inventes precios ni servicios que no estén en esta lista
-- Si no sabes algo, di que lo puede consultar directamente con el equipo`;
+2. **Plataformas a Medida** — Software y aplicaciones web desarrolladas específicamente para el negocio del cliente: sistemas de gestión, portales, automatizaciones, apps internas. Precio orientativo: desde $25,000 MXN según alcance.
 
-// 6. EL ENDPOINT DE CHAT
-//    Esta es la "puerta" a la que el widget envía los mensajes
-//    Ruta: POST /chat
-app.post('/chat', async (req, res) => {
+3. **Estrategia y Marketing Digital** — Consultoría, posicionamiento en Google (SEO), gestión de redes sociales y campañas de publicidad digital. Se trabaja por proyecto o en esquema de retainer mensual.
 
-  // 6a. Extraemos el historial de mensajes que llega del widget
-  //     "historial" es un arreglo con todos los mensajes anteriores de la conversación
-  const { historial } = req.body;
+4. **Marcas que no se olvidan** — Identidad visual y branding: logotipo, paleta de color, tipografía, guía de marca. Para negocios que quieren comunicar con coherencia y profesionalismo.
 
-  // 6b. Validación básica: si no llega historial, respondemos con error
-  if (!historial || !Array.isArray(historial)) {
-    return res.status(400).json({ error: 'Falta el historial de mensajes' });
-  }
+5. **Inteligencia Artificial para Empresas** — Soluciones de IA prácticas, entrenadas con la voz y el conocimiento del negocio del cliente. Tres modalidades:
+   - **Chatbot para sitio web y WhatsApp**: responde, informa y captura leads 24/7 con el tono de la marca. Listo en 5-10 días hábiles.
+   - **Automatización con IA**: seguimiento automático a clientes, agendado de citas, respuestas por WhatsApp, sincronización con Google Sheets o CRM.
+   - **Asistente personalizado para equipos**: entrenado con los productos, precios y procesos internos del negocio. El equipo le pregunta, él responde.
+   Los precios se cotizan según el alcance — en la primera reunión se presenta propuesta clara, sin sorpresas. Si alguien pregunta por precio, no des un número exacto, pero menciona que la asesoría inicial es gratuita.
 
-  try {
-    // 6c. Enviamos el historial completo a Claude
-    //     Claude necesita ver toda la conversación para recordar el contexto
-    const respuesta = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',   // El modelo que usamos
-      max_tokens: 1024,                     // Máximo de palabras en la respuesta
-      system: SYSTEM_PROMPT,               // La personalidad del agente
-      messages: historial                  // Todo el historial de la conversación
-    });
+Todos los proyectos incluyen acompañamiento cercano. No somos una fábrica de sitios — trabajamos con pocos clientes a la vez para dar buen servicio.
 
-    // 6d. Extraemos solo el texto de la respuesta y lo enviamos de vuelta al widget
-    const texto = respuesta.content[0].text;
-    res.json({ respuesta: texto });
+## Tu objetivo en la conversación
+Tu misión es ayudar al visitante a entender si Materia Gris es la opción correcta para lo que necesita, y si lo es, conectarlo con el equipo.
 
-  } catch (error) {
-    // 6e. Si algo sale mal, lo reportamos
-    console.error('Error al llamar a Claude:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
+Para conectar a alguien con el equipo por WhatsApp necesitas tener estos tres datos de forma natural en la conversación:
+- Su nombre
+- El nombre de su empresa o negocio (o si es un emprendimiento nuevo)
+- Su presupuesto aproximado o rango (no pidas una cifra exacta — algo como "¿tienes idea del presupuesto que manejas para este proyecto?" funciona bien)
 
-// 7. RUTA DE PRUEBA
-//    Sirve para verificar que el servidor está corriendo
-//    Abre http://localhost:3000 en tu navegador y verás un mensaje
+No pidas estos datos como formulario. Déjalos surgir en la conversación. Primero entiende qué necesita, resuelve sus dudas, y cuando ya hay interés claro, ve recogiendo la información de forma natural.
+
+## Cuándo derivar a WhatsApp
+Solo cuando tengas los tres datos anteriores (nombre, empresa, presupuesto), invita al visitante a continuar por WhatsApp con el equipo. Usa este enlace:
+https://wa.me/524427749881
+
+Mensaje sugerido al derivar:
+"Con gusto te conecto con el equipo para platicar los detalles. Puedes escribirles directo por WhatsApp aquí: https://wa.me/524427749881 — ya tienen contexto de lo que necesitas 😊"
+
+Si el visitante pregunta por WhatsApp antes de que tengas los datos, puedes dar el número pero menciona que el equipo va a necesitar esos datos para darle una respuesta útil.
+
+## Lo que NO haces
+- No inventas precios exactos ni plazos de entrega — das orientativos y aclaras que cada proyecto se cotiza
+- No hablas de WOOOW Diseño Web ni de sitios económicos — ese es otro servicio que no tiene relación con Materia Gris
+- No prometes cosas que no sabes si el equipo puede cumplir
+- No usas emojis en exceso — uno ocasional está bien, no en cada mensaje
+- No haces listas largas cuando una respuesta corta funciona mejor`;
+
+// ─────────────────────────────────────────────
+// RUTAS
+// ─────────────────────────────────────────────
+
+// Ruta de prueba
 app.get('/', (req, res) => {
   res.send('Agente IA de Materia Gris — funcionando ✅');
 });
 
-// 8. ARRANCAMOS EL SERVIDOR
-//    Puerto 3000 = la "puerta" por donde entra el tráfico localmente
-const PUERTO = 3000;
-app.listen(PUERTO, () => {
-  console.log(`Servidor corriendo en http://localhost:${PUERTO}`);
+// Ruta principal del chat
+app.post('/chat', async (req, res) => {
+  try {
+    const { messages } = req.body;
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Se requiere un array de mensajes' });
+    }
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: messages,
+    });
+
+    res.json({ reply: response.content[0].text });
+
+  } catch (error) {
+    console.error('Error al llamar a la API de Anthropic:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// ARRANQUE
+// ─────────────────────────────────────────────
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en puerto ${PORT} ✅`);
 });
