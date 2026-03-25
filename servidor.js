@@ -7,6 +7,13 @@ const client = new Anthropic();
 
 app.use(express.json());
 
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.sendStatus(200);
+});
+
 // CORS para WordPress
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
